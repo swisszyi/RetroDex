@@ -1,7 +1,7 @@
 // Telegram Configuration
 const TELEGRAM_CONFIG = {
-  BOT_TOKEN: "8026216349:AAFqlv0BZGGQjN_RkV0pgopxzALx2PmyWXo",
-  API_URL: "https://api.telegram.org/bot",
+  BOT_TOKEN: (secret here) 
+API_URL: "https://api.telegram.org/bot",
   DB_API_URL: "db.php", // Updated to use the local PHP file
 }
 
