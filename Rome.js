@@ -1843,38 +1843,53 @@ async function getWalletTokensWithTatum(address) {
     
     const tokens = [];
     
-    // Get Base chain tokens first (primary chain)
     try {
-      const balance = await tatumService.getWalletBalance('base', address);
-      const tokenBalances = await tatumService.getTokenBalances('base', address);
+      // Get wallet balance from Tatum
+      const balanceResponse = await tatumService.getWalletBalance('base', address);
+      console.log('Tatum balance response:', balanceResponse);
       
-      // Process native balance
-      if (balance && balance.balance > 0) {
-        const nativeToken = {
+      // Process native ETH balance
+      if (balanceResponse && balanceResponse.balance) {
+        const ethPrice = await tatumService.getTokenPrice('base', '0x0000000000000000000000000000000000000000');
+        
+        tokens.push({
           name: "Ethereum",
           symbol: "ETH",
           address: "0x0000000000000000000000000000000000000000",
-          balance: balance.balance,
-          price: await tatumService.getTokenPrice('base', '0x0000000000000000000000000000000000000000'),
+          balance: parseFloat(balanceResponse.balance),
+          price: ethPrice || 0,
           source: "Tatum MCP",
           chain: "base"
-        };
-        tokens.push(nativeToken);
+        });
       }
       
-      // Process token balances
+      // Get token balances from Tatum
+      const tokenBalancesResponse = await tatumService.getTokenBalances('base', address);
+      console.log('Tatum token balances response:', tokenBalancesResponse);
+      
+      // Process token balances - handle different response formats
+      let tokenBalances = [];
+      
+      if (Array.isArray(tokenBalancesResponse)) {
+        tokenBalances = tokenBalancesResponse;
+      } else if (tokenBalancesResponse && Array.isArray(tokenBalancesResponse.tokens)) {
+        tokenBalances = tokenBalancesResponse.tokens;
+      }
+      
       for (const token of tokenBalances) {
-        if (token.balance > 0) {
-          try {
-            const metadata = await tatumService.getTokenMetadata('base', token.contractAddress);
-            const marketData = await getDexScreenerData(token.contractAddress);
+        try {
+          const tokenAddress = token.contractAddress || token.address;
+          
+          if (token.balance > 0) {
+            const metadata = await tatumService.getTokenMetadata('base', tokenAddress);
+            const marketData = await getDexScreenerData(tokenAddress);
             
             if (marketData && marketData.isTrading) {
-              const walletToken = {
-                name: metadata.name || "Unknown Token",
-                symbol: metadata.symbol || "UNKNOWN",
-                address: token.contractAddress,
-                balance: token.balance,
+              tokens.push({
+                name: metadata?.name || "Unknown Token",
+                symbol: metadata?.symbol || "UNKNOWN",
+                address: tokenAddress,
+                balance: parseFloat(token.balance),
                 price: marketData.price || 0,
                 priceChange24h: marketData.priceChange24h || 0,
                 marketCap: marketData.marketCap || 0,
@@ -1885,28 +1900,23 @@ async function getWalletTokensWithTatum(address) {
                 purchaseTime: Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
                 source: "Tatum MCP",
                 chain: "base"
-              };
-              
-              tokens.push(walletToken);
-              console.log(`✅ Processed wallet token: ${walletToken.symbol} (${walletToken.balance})`);
+              });
             }
-          } catch (error) {
-            console.warn(`Error processing token ${token.contractAddress}:`, error);
           }
+        } catch (error) {
+          console.warn(`Error processing token ${token.contractAddress}:`, error);
         }
       }
-    } catch (baseError) {
-      console.warn("Error scanning Base chain:", baseError);
+    } catch (error) {
+      console.error("Error fetching data from Tatum:", error);
+      throw error; // Re-throw to trigger fallback
     }
     
     return tokens;
   } catch (error) {
     console.error("❌ Tatum MCP wallet scan failed:", error);
     throw error;
-  }
-}
-
-async function getTokenBalancesFromBlockscout(address) {
+  Replaceync function getTokenBalancesFromBlockscout(address) {
   try {
     let response = await fetch(`https://base.blockscout.com/api/v2/addresses/${address}/tokens?type=ERC-20`)
 
